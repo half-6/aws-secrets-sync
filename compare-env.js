@@ -5,7 +5,11 @@ import { fileURLToPath } from "url";
 import { Command } from "commander";
 import dotenv from "dotenv";
 
-import { CONFIG_FILE_HELP, resolveConfig } from "./lib/config-loader.js";
+import {
+  CONFIG_FILE_HELP,
+  filterMappings,
+  resolveConfig,
+} from "./lib/config-loader.js";
 import { getSecret } from "./lib/secrets-client.js";
 
 const RESET = "\x1b[0m";
@@ -77,7 +81,7 @@ function compareEnvs(awsSecret, localEnv, secretName, filePath) {
 }
 
 /**
- * @param {string} [name] - command name shown in help (default: "compare")
+ * @param {string} [name]
  * @returns {Command}
  */
 export function buildCommand(name = "compare") {
@@ -102,14 +106,7 @@ Examples:
     )
     .action(async (envFilter, options) => {
       const { mappings, awsRegion, awsProfile } = resolveConfig(options.file);
-
-      const filtered = envFilter
-        ? mappings.filter(
-            (m) =>
-              m.secretName.includes(envFilter) ||
-              m.envFilePath.includes(envFilter),
-          )
-        : mappings;
+      const filtered = filterMappings(mappings, envFilter);
 
       if (!filtered.length) {
         console.error(`No mappings found matching "${envFilter}"`);

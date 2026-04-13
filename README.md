@@ -13,8 +13,25 @@ Sync configuration between AWS Secrets Manager and local `.env` files:
 
 ## Install
 
+### Global install (recommended for regular use)
+
+```bash
+npm install -g aws-secrets-sync
+aws-secrets-sync --help
+```
+
+### One-off via npx (no install required)
+
+```bash
+npx aws-secrets-sync download staging
+npx aws-secrets-sync --help
+```
+
+### Local project install
+
 ```bash
 npm install aws-secrets-sync
+npx aws-secrets-sync download staging
 ```
 
 ## Configuration
@@ -64,7 +81,7 @@ aws-secrets-sync download staging -f ./path/to/config.json
 aws-secrets-sync download --help
 ```
 
-Fetches each secret from AWS Secrets Manager and writes it as `KEY='value'` lines to the mapped file. Parent directories are created automatically. Existing files are overwritten.
+Fetches each secret from AWS Secrets Manager and writes it as `KEY="value"` lines to the mapped file. Values are double-quoted with backslashes and double quotes escaped. Parent directories are created automatically. Existing files are overwritten.
 
 ---
 

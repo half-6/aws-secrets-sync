@@ -12,6 +12,20 @@ import {
 import { getSecret } from "./lib/secrets-client.js";
 
 /**
+ * Serialises a secret value safely for a .env file using double-quoted format.
+ * Escapes backslashes and double quotes within the value.
+ *
+ * @param {string} key
+ * @param {unknown} value
+ * @returns {string}
+ */
+function formatEnvLine(key, value) {
+  const str = String(value);
+  const escaped = str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `${key}="${escaped}"`;
+}
+
+/**
  * @param {string} secretName
  * @param {string} outputFile
  * @param {string} region
@@ -28,7 +42,7 @@ async function writeSecretToFile(secretName, outputFile, region, profile) {
     fs.writeFileSync(
       outputFile,
       Object.entries(secret)
-        .map(([key, value]) => `${key}='${value}'`)
+        .map(([key, value]) => formatEnvLine(key, value))
         .join("\n"),
     );
     console.log(`Secret written to file ${outputFile}`);
@@ -82,5 +96,10 @@ Examples:
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  buildCommand("npm run download").parseAsync(process.argv);
+  buildCommand("npm run download")
+    .parseAsync(process.argv)
+    .catch((err) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    });
 }

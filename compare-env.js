@@ -29,7 +29,7 @@ function parseEnvFile(filePath) {
 }
 
 /**
- * @param {Record<string, string>} awsSecret
+ * @param {Record<string, unknown>} awsSecret
  * @param {Record<string, string>} localEnv
  * @param {string} secretName
  * @param {string} filePath
@@ -42,7 +42,7 @@ function compareEnvs(awsSecret, localEnv, secretName, filePath) {
   const onlyInAws = [...awsKeys].filter((k) => !localKeys.has(k));
   const onlyInLocal = [...localKeys].filter((k) => !awsKeys.has(k));
   const different = [...awsKeys].filter(
-    (k) => localKeys.has(k) && awsSecret[k] !== localEnv[k],
+    (k) => localKeys.has(k) && String(awsSecret[k]) !== localEnv[k],
   );
 
   const hasDiff = onlyInAws.length || onlyInLocal.length || different.length;
@@ -71,9 +71,7 @@ function compareEnvs(awsSecret, localEnv, secretName, filePath) {
   if (different.length) {
     console.log(`\n${YELLOW}Keys with different values:${RESET}`);
     for (const k of different) {
-      console.log(`  ${RED}~ ${k}${RESET}`);
-      console.log(`      AWS  : ${awsSecret[k]}`);
-      console.log(`      local: ${localEnv[k]}`);
+      console.log(`  ${RED}~ ${k} [values differ — masked for security]${RESET}`);
     }
   }
 
@@ -123,7 +121,7 @@ Examples:
           continue;
         }
 
-        /** @type {Record<string, string>} */
+        /** @type {Record<string, unknown>} */
         let awsSecret;
         try {
           awsSecret = await getSecret(secretName, awsRegion, awsProfile);
@@ -148,5 +146,10 @@ Examples:
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  buildCommand("npm run compare").parseAsync(process.argv);
+  buildCommand("npm run compare")
+    .parseAsync(process.argv)
+    .catch((err) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    });
 }

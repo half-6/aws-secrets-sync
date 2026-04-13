@@ -12,10 +12,16 @@ import {
 } from "./lib/config-loader.js";
 import { upsertSecret } from "./lib/secrets-client.js";
 
-/** @param {string} filePath @returns {Record<string, string>} */
+/**
+ * @param {string} filePath
+ * @returns {Record<string, string>}
+ */
 function parseEnvFile(filePath) {
-  const contents = fs.readFileSync(path.resolve(filePath));
-  return dotenv.parse(contents);
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Local .env file not found: ${resolved}`);
+  }
+  return dotenv.parse(fs.readFileSync(resolved));
 }
 
 /**
@@ -32,7 +38,7 @@ async function uploadEnvFileToSecret(envFilePath, secretName, region, profile) {
     console.log(`${result === "created" ? "Created" : "Updated"} secret: ${secretName} (from ${envFilePath})`);
     return true;
   } catch (error) {
-    console.error(`Failed to upload ${envFilePath} -> ${secretName}: ${error}`);
+    console.error(`Failed to upload ${envFilePath} -> ${secretName}: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
@@ -80,5 +86,10 @@ Examples:
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  buildCommand("npm run upload").parseAsync(process.argv);
+  buildCommand("npm run upload")
+    .parseAsync(process.argv)
+    .catch((err) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    });
 }

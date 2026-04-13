@@ -1,12 +1,18 @@
 #!/usr/bin/env node
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
+
 import { Command } from "commander";
 
 import { buildCommand as buildDownload } from "../download-env.js";
 import { buildCommand as buildUpload } from "../upload-env.js";
 import { buildCommand as buildCompare } from "../compare-env.js";
 
-// Keep in sync with package.json version
-const VERSION = "1.0.0";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const { version: VERSION } = JSON.parse(
+  readFileSync(join(__dirname, "../package.json"), "utf-8"),
+);
 
 const program = new Command();
 

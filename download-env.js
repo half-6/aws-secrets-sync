@@ -48,7 +48,7 @@ async function writeSecretToFile(secretName, outputFile, region, profile) {
     console.log(`Secret written to file ${outputFile}`);
     return true;
   } catch (error) {
-    console.error(`Error writing secret to file ${outputFile}: ${error}`);
+    console.error(`Error writing secret to file ${outputFile}: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }

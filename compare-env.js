@@ -112,6 +112,7 @@ Examples:
       }
 
       let anyDiff = false;
+      let anyFetchFailed = false;
 
       for (const { secretName, envFilePath } of filtered) {
         const localEnv = parseEnvFile(envFilePath);
@@ -128,6 +129,7 @@ Examples:
         } catch (error) {
           console.log(`\n${BOLD}${CYAN}━━━ ${secretName} ↔ ${envFilePath} ━━━${RESET}`);
           console.error(`${RED}✗ Failed to fetch from AWS: ${error instanceof Error ? error.message : String(error)}${RESET}`);
+          anyFetchFailed = true;
           continue;
         }
 
@@ -136,7 +138,10 @@ Examples:
       }
 
       console.log("");
-      if (anyDiff) {
+      if (anyFetchFailed) {
+        console.log(`${RED}${BOLD}✗ One or more secrets could not be fetched from AWS.${RESET}`);
+        process.exit(1);
+      } else if (anyDiff) {
         console.log(`${YELLOW}${BOLD}⚠ Differences detected in one or more environments.${RESET}`);
         process.exit(1);
       } else {

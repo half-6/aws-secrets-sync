@@ -1,0 +1,14 @@
+# Local config — contains real secret paths and AWS profile names
+aws-secrets.config.json
+
+# Downloaded secrets
+.env/
+
+# Dependencies
+node_modules/
+
+# npm pack output
+*.tgz
+
+# macOS
+.DS_Store

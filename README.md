@@ -54,7 +54,29 @@ Create an `aws-secrets.config.json` file in your project root:
 |---|---|---|
 | `mappings` | Yes | Array of `{ envFilePath, secretName }` pairs |
 | `awsRegion` | No | Defaults to `us-east-1` |
-| `awsProfile` | No | AWS credentials profile to use |
+| `awsProfile` | No | Named AWS credentials profile (`~/.aws/credentials`) |
+| `awsAccessKeyId` | No | Explicit AWS access key ID |
+| `awsSecretAccessKey` | No | Explicit AWS secret access key (required with `awsAccessKeyId`) |
+
+### AWS credential resolution
+
+Config is resolved in two layers:
+
+**Layer 1 — where values come from (highest → lowest priority):**
+
+| Priority | Source |
+|---|---|
+| 1 | Config file (`-f` or `aws-secrets.config.json`) |
+| 2 | Environment variables: `AWS_REGION`, `AWS_PROFILE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| 3 | Defaults in `config-loader.js` |
+
+**Layer 2 — how the AWS client authenticates (using the resolved values):**
+
+| Priority | Method |
+|---|---|
+| 1 | `awsAccessKeyId` + `awsSecretAccessKey` — explicit static credentials |
+| 2 | `awsProfile` — named profile from `~/.aws/credentials` or `~/.aws/config` |
+| 3 | Default credential chain — EC2 instance profile, ECS task role, SSO, etc. |
 
 All three commands auto-detect `aws-secrets.config.json` in the current working directory. Override with `-f <path>`.
 
@@ -98,6 +120,8 @@ aws-secrets-sync upload staging -f ./path/to/config.json
 
 Parses each local `.env` file and writes its key/value pairs as a JSON secret to AWS Secrets Manager. Creates the secret if it does not exist; updates it if it does.
 
+> **Note — type fidelity:** `.env` files are text-only, so all values are stored as strings after an upload. If a secret originally contained typed values (e.g. `PORT: 42` as a number), uploading after a download will convert them to strings (`PORT: "42"`). Consumers that relied on the numeric type will need to coerce the value themselves (e.g. `Number(process.env.PORT)`).
+
 ---
 
 ### Compare — diff AWS vs local
@@ -126,7 +150,9 @@ Each command resolves its configuration in this order:
 
 1. Path passed via `-f` / `--file`
 2. `aws-secrets.config.json` auto-detected in the current working directory
-3. `MAPPINGS` / `AWS_REGION` / `AWS_PROFILE` exported from `config.js`
+3. Path in the `AWS_SECRETS_CONFIG_FILE` environment variable
+
+If none of the above is found the command exits with an error. AWS credential defaults (`us-east-1` region, default credential chain) apply within whichever config file is loaded.
 
 ## Security notes
 

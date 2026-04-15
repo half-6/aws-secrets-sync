@@ -1,23 +1,21 @@
 {
   "name": "aws-secrets-sync",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sync AWS Secrets Manager secrets to/from local .env files",
   "type": "module",
   "bin": {
-    "aws-secrets-sync": "./bin/cli.js"
+    "aws-secrets-sync": "./src/bin/cli.js"
   },
+  "exports": "./src/bin/cli.js",
   "files": [
-    "bin/",
-    "lib/",
-    "download-env.js",
-    "upload-env.js",
-    "compare-env.js",
-    "config.js"
+    "src/"
   ],
   "scripts": {
-    "download": "node download-env.js",
-    "upload": "node upload-env.js",
-    "compare": "node compare-env.js"
+    "download": "node src/bin/cli.js download",
+    "upload": "node src/bin/cli.js upload",
+    "compare": "node src/bin/cli.js compare",
+    "test": "node --test test/*.test.js",
+    "lint": "eslint src/ test/"
   },
   "engines": {
     "node": ">=18"
@@ -41,11 +39,17 @@
     "sync"
   ],
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.1001.0",
+    "@aws-sdk/client-secrets-manager": "^3.1030.0",
+    "@aws-sdk/credential-providers": "^3.1030.0",
     "commander": "^14.0.3",
     "dotenv": "^16.6.1"
   },
   "overrides": {
     "fast-xml-parser": "^5.4.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.0",
+    "globals": "^17.5.0"
   }
 }

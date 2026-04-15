@@ -199,6 +199,28 @@ describe("buildCommand (compare) action", () => {
     }
   });
 
+  it("exits 1 immediately when AWS returns an auth error (ExpiredTokenException)", async () => {
+    const envFile = path.join(tmpDir, "auth-error.env");
+    fs.writeFileSync(envFile, 'FOO="bar"\n');
+    const configFile = writeConfig("cfg-auth-error.json", envFile, "app/auth-error");
+
+    const exitMock = mock.method(process, "exit", () => { throw new Error("process.exit(1)"); });
+    try {
+      const authErr = new Error("token expired");
+      authErr.name = "ExpiredTokenException";
+      const cmd = buildCommand("compare", {
+        getSecretFn: async () => { throw authErr; },
+      });
+      await assert.rejects(
+        () => cmd.parseAsync(["node", "compare", "-f", configFile]),
+        /process\.exit\(1\)/,
+      );
+      assert.equal(exitMock.mock.calls[0].arguments[0], 1);
+    } finally {
+      exitMock.mock.restore();
+    }
+  });
+
   it("exits 1 when no mappings match the filter", async () => {
     const configFile = writeConfig("cfg-no-match.json", ".env/staging.env", "app/staging");
 

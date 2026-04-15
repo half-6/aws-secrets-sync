@@ -127,7 +127,7 @@ Examples:
 
         if (isNew) {
           log.info("  New secret — will be created in AWS.");
-          log.info(`  Keys to add: ${Object.keys(localEnv).join(", ")}`);
+          log.info(`  Keys to add: ${Object.keys(localEnv).length} key(s) [names masked for security]`);
         } else {
           const diff = diffEnvs(/** @type {Record<string, unknown>} */ (awsSecret), localEnv);
           if (!printDiff(diff, UPLOAD_LABELS)) {

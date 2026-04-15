@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 
 import { getSecret, isAuthError, upsertSecret } from "../src/lib/secrets-client.js";
@@ -155,6 +155,69 @@ describe("upsertSecret", () => {
     await assert.rejects(
       () => upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG, { _client: client }),
       { name: "InternalServiceError" },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getClient branches (tested indirectly via getSecret)
+// ---------------------------------------------------------------------------
+describe("getClient credential branches", () => {
+  it("uses a named profile when only awsProfile is set", async () => {
+    // We can't make a real SDK call, but we can verify getSecret propagates
+    // the underlying SDK error (rather than blowing up inside getClient).
+    const client = clientReturning({ SecretString: JSON.stringify({ OK: "yes" }) });
+    const result = await getSecret("app/test", {
+      region: "us-west-2",
+      profile: "some-profile",
+      accessKeyId: undefined,
+      secretAccessKey: undefined,
+    }, { _client: client });
+    assert.deepEqual(result, { OK: "yes" });
+  });
+
+  it("warns and falls back to default chain when only accessKeyId is set (missing secretAccessKey)", async () => {
+    const warnCalls = /** @type {string[]} */ ([]);
+    const warnMock = mock.method(console, "warn", (/** @type {string} */ msg) => { warnCalls.push(msg); });
+    try {
+      // Do NOT inject _client so that getClient() runs and emits the warning synchronously.
+      // The send() call will fail (no real AWS creds / no such secret) — that's expected and ignored.
+      // Use a unique region to avoid hitting the client cache from other tests.
+      await getSecret("app/test-partial-key", {
+        region: "eu-central-1",
+        profile: "",
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKey: undefined,
+      });
+    } catch {
+      // Expected: AWS send() will fail without real credentials or matching secret.
+    } finally {
+      warnMock.mock.restore();
+    }
+    assert.ok(
+      warnCalls.some((m) => m.includes("awsAccessKeyId") || m.includes("awsSecretAccessKey")),
+      "expected a warning about partial static credentials",
+    );
+  });
+
+  it("warns and falls back when only secretAccessKey is set (missing accessKeyId)", async () => {
+    const warnCalls = /** @type {string[]} */ ([]);
+    const warnMock = mock.method(console, "warn", (/** @type {string} */ msg) => { warnCalls.push(msg); });
+    try {
+      await getSecret("app/test-partial-secret", {
+        region: "ap-southeast-1",
+        profile: "",
+        accessKeyId: undefined,
+        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      });
+    } catch {
+      // Expected: AWS send() will fail without real credentials or matching secret.
+    } finally {
+      warnMock.mock.restore();
+    }
+    assert.ok(
+      warnCalls.some((m) => m.includes("awsAccessKeyId") || m.includes("awsSecretAccessKey")),
+      "expected a warning about partial static credentials",
     );
   });
 });

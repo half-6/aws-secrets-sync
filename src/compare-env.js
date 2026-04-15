@@ -101,6 +101,8 @@ Examples:
 
         /** @type {Record<string, unknown> | null} */
         const awsSecret = await getSecretFn(secretName, awsConfig).catch((error) => {
+          // handleAuthError calls process.exit(1) immediately for auth errors,
+          // so anyFetchFailed is only set for non-auth fetch failures.
           handleAuthError(error);
           log.error(`Failed to fetch from AWS: ${getErrorMessage(error)}`);
           anyFetchFailed = true;

@@ -79,7 +79,7 @@ function writeToFile(secret, outputFile) {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, value]) => formatEnvLine(key, value))
         .join("\n") + "\n";
-    fs.writeFileSync(tmpFile, content);
+    fs.writeFileSync(tmpFile, content, { mode: 0o600 });
     fs.renameSync(tmpFile, resolved);
     log.success(`Secret written to ${outputFile}`);
     return true;

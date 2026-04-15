@@ -1,5 +1,7 @@
 # aws-secrets-sync
 
+> **Note:** The npm package name is `aws-secrets-sync`. The local development folder may be named differently (e.g. `aws-secrets-to-env`) — use the package name for all install and run commands.
+
 Sync configuration between AWS Secrets Manager and local `.env` files:
 
 - **download**: AWS Secrets Manager → `.env` files
@@ -82,7 +84,9 @@ All three commands auto-detect `aws-secrets.config.json` in the current working 
 
 ## Commands
 
-All commands accept an optional **env-filter** as the first argument, matched against both the secret name and the file path. Omit it to process all mappings.
+All commands accept an optional **env-filter** as the first argument, matched as a **case-sensitive substring** against both the secret name and the file path. Omit it to process all mappings.
+
+> **Tip — choose precise filter strings:** The match is a substring, so `prod` will also match `production`, and `stg` will match any secret name or path containing those characters. Use a longer, unambiguous substring (e.g. `myapp/prod/`) when your secret names are similar.
 
 ---
 
@@ -140,7 +144,14 @@ For each mapped environment, reports:
 - Keys present locally but missing from AWS
 - Keys present in both but with different values
 
-Exits with code `1` if any differences are found, making it suitable for CI checks.
+Exits with code `1` in any of these cases, making it suitable for CI checks:
+
+| Condition | Exit code |
+|---|---|
+| Differences found between AWS and local | `1` |
+| A mapped local `.env` file does not exist | `1` |
+| An AWS secret could not be fetched (non-auth error) | `1` |
+| Authentication / credential failure | `1` (immediate abort) |
 
 ---
 
@@ -161,4 +172,5 @@ If none of the above is found the command exits with an error. AWS credential de
   - `secretsmanager:GetSecretValue` (download, compare)
   - `secretsmanager:PutSecretValue` (upload)
   - `secretsmanager:CreateSecret` (upload, first run)
+- **KMS encryption:** When creating a new secret, the tool uses your account's default encryption key. If your organisation enforces a customer-managed KMS key (CMK) via SCP or resource policy, the `CreateSecret` call will fail. In that case, pre-create the secret in the AWS console (with the correct KMS key) and use upload to populate its value.
 - Rotate credentials regularly and treat terminal output as sensitive.

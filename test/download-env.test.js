@@ -261,7 +261,11 @@ describe("formatEnvLine", () => {
     assert.equal(result, 'ARR="[1,2,3]"');
   });
 
-  it("escapes C0 control characters (\\x01-\\x1f, \\x7f) as \\xNN", () => {
+  it("escapes tab as \\t so dotenv can round-trip it correctly", () => {
+    assert.equal(formatEnvLine("TAB", "col1\tcol2"), 'TAB="col1\\tcol2"');
+  });
+
+  it("escapes C0 control characters (\\x01-\\x08, \\x0b, \\x0c, \\x0e-\\x1f, \\x7f) as \\xNN", () => {
     assert.equal(formatEnvLine("CTRL", "\x01\x1f\x7f"), 'CTRL="\\x01\\x1f\\x7f"');
   });
 

@@ -85,6 +85,8 @@ Examples:
         process.exit(1);
       }
 
+      log.info(`\n▶ Comparing ${filtered.length} secret(s) against local env file(s)…`);
+
       let anyDiff = false;
       let anyMissing = false;
       let anyFetchFailed = false;

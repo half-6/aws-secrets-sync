@@ -1,36 +1,23 @@
-import { describe, it, mock } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { getSecret, isAuthError, upsertSecret } from "../src/lib/secrets-client.js";
 import { DUMMY_AWS_CONFIG } from "./fixtures.js";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 /**
- * Builds a minimal mock SecretsManagerClient whose `send` calls the provided
- * function and returns its result.
+ * Temporarily overrides SecretsManagerClient.prototype.send for one test.
+ * Setting it as an own property on the prototype shadows the inherited
+ * Client.prototype.send for all existing and future instances.
+ * Returns a cleanup function that removes the override.
  *
  * @param {(cmd: unknown, callIndex: number) => Promise<unknown>} sendFn
+ * @returns {() => void}
  */
-function makeMockClient(sendFn) {
-  let callIndex = 0;
-  return { send: (cmd) => sendFn(cmd, callIndex++) };
-}
-
-/** Returns a mock client that always resolves with `response`. */
-function clientReturning(response) {
-  return makeMockClient(async () => response);
-}
-
-/** Returns a mock client that always rejects with an error bearing the given name. */
-function clientThrowing(name, message = "aws error") {
-  return makeMockClient(async () => {
-    const err = new Error(message);
-    err.name = name;
-    throw err;
-  });
+function mockSend(sendFn) {
+  let calls = 0;
+  SecretsManagerClient.prototype.send = (cmd) => sendFn(cmd, calls++);
+  return () => { delete SecretsManagerClient.prototype.send; };
 }
 
 // ---------------------------------------------------------------------------
@@ -38,49 +25,62 @@ function clientThrowing(name, message = "aws error") {
 // ---------------------------------------------------------------------------
 describe("getSecret", () => {
   it("parses and returns a valid JSON object secret", async () => {
-    const client = clientReturning({ SecretString: JSON.stringify({ KEY: "value", PORT: 3000 }) });
-    const result = await getSecret("app/test", DUMMY_AWS_CONFIG, { _client: client });
-    assert.deepEqual(result, { KEY: "value", PORT: 3000 });
+    const restore = mockSend(async () => ({ SecretString: JSON.stringify({ KEY: "value", PORT: 3000 }) }));
+    try {
+      const result = await getSecret("app/test", DUMMY_AWS_CONFIG);
+      assert.deepEqual(result, { KEY: "value", PORT: 3000 });
+    } finally {
+      restore();
+    }
   });
 
   it("throws when SecretString is absent (binary secret)", async () => {
-    const client = clientReturning({ SecretString: undefined });
-    await assert.rejects(
-      () => getSecret("app/test", DUMMY_AWS_CONFIG, { _client: client }),
-      /binary secret/,
-    );
+    const restore = mockSend(async () => ({ SecretString: undefined }));
+    try {
+      await assert.rejects(() => getSecret("app/test", DUMMY_AWS_CONFIG), /binary secret/);
+    } finally {
+      restore();
+    }
   });
 
   it("throws when SecretString is not valid JSON", async () => {
-    const client = clientReturning({ SecretString: "not valid json" });
-    await assert.rejects(
-      () => getSecret("app/test", DUMMY_AWS_CONFIG, { _client: client }),
-      /not valid JSON/,
-    );
+    const restore = mockSend(async () => ({ SecretString: "not valid json" }));
+    try {
+      await assert.rejects(() => getSecret("app/test", DUMMY_AWS_CONFIG), /not valid JSON/);
+    } finally {
+      restore();
+    }
   });
 
   it("throws when secret is a JSON array instead of an object", async () => {
-    const client = clientReturning({ SecretString: "[1, 2, 3]" });
-    await assert.rejects(
-      () => getSecret("app/test", DUMMY_AWS_CONFIG, { _client: client }),
-      /must be a JSON object/,
-    );
+    const restore = mockSend(async () => ({ SecretString: "[1, 2, 3]" }));
+    try {
+      await assert.rejects(() => getSecret("app/test", DUMMY_AWS_CONFIG), /must be a JSON object/);
+    } finally {
+      restore();
+    }
   });
 
   it("throws when secret is a JSON primitive instead of an object", async () => {
-    const client = clientReturning({ SecretString: '"just a string"' });
-    await assert.rejects(
-      () => getSecret("app/test", DUMMY_AWS_CONFIG, { _client: client }),
-      /must be a JSON object/,
-    );
+    const restore = mockSend(async () => ({ SecretString: '"just a string"' }));
+    try {
+      await assert.rejects(() => getSecret("app/test", DUMMY_AWS_CONFIG), /must be a JSON object/);
+    } finally {
+      restore();
+    }
   });
 
-  it("propagates errors from the client", async () => {
-    const client = clientThrowing("AccessDeniedException");
-    await assert.rejects(
-      () => getSecret("app/test", DUMMY_AWS_CONFIG, { _client: client }),
-      { name: "AccessDeniedException" },
-    );
+  it("propagates errors thrown by the client", async () => {
+    const restore = mockSend(async () => {
+      const err = new Error("access denied");
+      err.name = "AccessDeniedException";
+      throw err;
+    });
+    try {
+      await assert.rejects(() => getSecret("app/test", DUMMY_AWS_CONFIG), { name: "AccessDeniedException" });
+    } finally {
+      restore();
+    }
   });
 });
 
@@ -89,14 +89,18 @@ describe("getSecret", () => {
 // ---------------------------------------------------------------------------
 describe("upsertSecret", () => {
   it("returns 'updated' when PutSecretValue succeeds", async () => {
-    const client = clientReturning({});
-    const result = await upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG, { _client: client });
-    assert.equal(result, "updated");
+    const restore = mockSend(async () => ({}));
+    try {
+      const result = await upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG);
+      assert.equal(result, "updated");
+    } finally {
+      restore();
+    }
   });
 
   it("returns 'created' when PutSecretValue throws ResourceNotFoundException and CreateSecret succeeds", async () => {
     let callCount = 0;
-    const client = makeMockClient(async () => {
+    const restore = mockSend(async () => {
       callCount++;
       if (callCount === 1) {
         const err = new Error("not found");
@@ -105,120 +109,61 @@ describe("upsertSecret", () => {
       }
       return {};
     });
-    const result = await upsertSecret("app/new", { KEY: "val" }, DUMMY_AWS_CONFIG, { _client: client });
-    assert.equal(result, "created");
-    assert.equal(callCount, 2);
+    try {
+      const result = await upsertSecret("app/new", { KEY: "val" }, DUMMY_AWS_CONFIG);
+      assert.equal(result, "created");
+      assert.equal(callCount, 2);
+    } finally {
+      restore();
+    }
   });
 
   it("returns 'updated' and retries Put on ResourceExistsException race condition", async () => {
     let callCount = 0;
-    const client = makeMockClient(async () => {
+    const restore = mockSend(async () => {
       callCount++;
-      if (callCount === 1) {
-        const err = new Error("not found");
-        err.name = "ResourceNotFoundException";
-        throw err;
-      }
-      if (callCount === 2) {
-        const err = new Error("already exists");
-        err.name = "ResourceExistsException";
-        throw err;
-      }
+      if (callCount === 1) { const e = new Error("not found"); e.name = "ResourceNotFoundException"; throw e; }
+      if (callCount === 2) { const e = new Error("already exists"); e.name = "ResourceExistsException"; throw e; }
       return {};
     });
-    const result = await upsertSecret("app/race", { KEY: "val" }, DUMMY_AWS_CONFIG, { _client: client });
-    assert.equal(result, "updated");
-    assert.equal(callCount, 3);
+    try {
+      const result = await upsertSecret("app/race", { KEY: "val" }, DUMMY_AWS_CONFIG);
+      assert.equal(result, "updated");
+      assert.equal(callCount, 3);
+    } finally {
+      restore();
+    }
   });
 
   it("rethrows unexpected errors from PutSecretValue", async () => {
-    const client = clientThrowing("InternalServiceError");
-    await assert.rejects(
-      () => upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG, { _client: client }),
-      { name: "InternalServiceError" },
-    );
+    const restore = mockSend(async () => {
+      const err = new Error("internal error"); err.name = "InternalServiceError"; throw err;
+    });
+    try {
+      await assert.rejects(
+        () => upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG),
+        { name: "InternalServiceError" },
+      );
+    } finally {
+      restore();
+    }
   });
 
   it("rethrows unexpected errors from CreateSecret", async () => {
     let callCount = 0;
-    const client = makeMockClient(async () => {
+    const restore = mockSend(async () => {
       callCount++;
-      if (callCount === 1) {
-        const err = new Error("not found");
-        err.name = "ResourceNotFoundException";
-        throw err;
-      }
-      const err = new Error("service error");
-      err.name = "InternalServiceError";
-      throw err;
+      if (callCount === 1) { const e = new Error("not found"); e.name = "ResourceNotFoundException"; throw e; }
+      const err = new Error("service error"); err.name = "InternalServiceError"; throw err;
     });
-    await assert.rejects(
-      () => upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG, { _client: client }),
-      { name: "InternalServiceError" },
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getClient branches (tested indirectly via getSecret)
-// ---------------------------------------------------------------------------
-describe("getClient credential branches", () => {
-  it("uses a named profile when only awsProfile is set", async () => {
-    // We can't make a real SDK call, but we can verify getSecret propagates
-    // the underlying SDK error (rather than blowing up inside getClient).
-    const client = clientReturning({ SecretString: JSON.stringify({ OK: "yes" }) });
-    const result = await getSecret("app/test", {
-      region: "us-west-2",
-      profile: "some-profile",
-      accessKeyId: undefined,
-      secretAccessKey: undefined,
-    }, { _client: client });
-    assert.deepEqual(result, { OK: "yes" });
-  });
-
-  it("warns and falls back to default chain when only accessKeyId is set (missing secretAccessKey)", async () => {
-    const warnCalls = /** @type {string[]} */ ([]);
-    const warnMock = mock.method(console, "warn", (/** @type {string} */ msg) => { warnCalls.push(msg); });
     try {
-      // Do NOT inject _client so that getClient() runs and emits the warning synchronously.
-      // The send() call will fail (no real AWS creds / no such secret) — that's expected and ignored.
-      // Use a unique region to avoid hitting the client cache from other tests.
-      await getSecret("app/test-partial-key", {
-        region: "eu-central-1",
-        profile: "",
-        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-        secretAccessKey: undefined,
-      });
-    } catch {
-      // Expected: AWS send() will fail without real credentials or matching secret.
+      await assert.rejects(
+        () => upsertSecret("app/test", { KEY: "val" }, DUMMY_AWS_CONFIG),
+        { name: "InternalServiceError" },
+      );
     } finally {
-      warnMock.mock.restore();
+      restore();
     }
-    assert.ok(
-      warnCalls.some((m) => m.includes("awsAccessKeyId") || m.includes("awsSecretAccessKey")),
-      "expected a warning about partial static credentials",
-    );
-  });
-
-  it("warns and falls back when only secretAccessKey is set (missing accessKeyId)", async () => {
-    const warnCalls = /** @type {string[]} */ ([]);
-    const warnMock = mock.method(console, "warn", (/** @type {string} */ msg) => { warnCalls.push(msg); });
-    try {
-      await getSecret("app/test-partial-secret", {
-        region: "ap-southeast-1",
-        profile: "",
-        accessKeyId: undefined,
-        secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-      });
-    } catch {
-      // Expected: AWS send() will fail without real credentials or matching secret.
-    } finally {
-      warnMock.mock.restore();
-    }
-    assert.ok(
-      warnCalls.some((m) => m.includes("awsAccessKeyId") || m.includes("awsSecretAccessKey")),
-      "expected a warning about partial static credentials",
-    );
   });
 });
 

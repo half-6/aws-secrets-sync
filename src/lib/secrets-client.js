@@ -1,5 +1,3 @@
-import { createHash } from "crypto";
-
 import {
   CreateSecretCommand,
   GetSecretValueCommand,
@@ -19,36 +17,21 @@ import { log } from "./logger.js";
  * }} AwsConfig
  */
 
-/** @type {Map<string, SecretsManagerClient>} */
-const clientCache = new Map();
+/** @type {SecretsManagerClient | null} */
+let client = null;
 
 /**
- * Produces a short, opaque identifier for a credential pair without
- * embedding either key in the cache key string.
+ * Returns the single SecretsManagerClient for this process, creating it on
+ * first call. A CLI run uses one AWS config throughout, so one instance is
+ * sufficient.
  *
- * @param {string | undefined} accessKeyId
- * @param {string | undefined} secretAccessKey
- * @returns {string}
- */
-function credentialCacheKey(accessKeyId, secretAccessKey) {
-  if (!accessKeyId) return "";
-  return createHash("sha256")
-    .update(`${accessKeyId}:${secretAccessKey ?? ""}`)
-    .digest("hex")
-    .slice(0, 16);
-}
-
-/**
- * Returns a cached SecretsManagerClient.
  * Priority: explicit credentials → named profile → default credential chain.
  *
  * @param {AwsConfig} config
  * @returns {SecretsManagerClient}
  */
 function getClient({ region, profile, accessKeyId, secretAccessKey }) {
-  const key = `${region}::${profile}::${credentialCacheKey(accessKeyId, secretAccessKey)}`;
-  const cached = clientCache.get(key);
-  if (cached) return cached;
+  if (client) return client;
 
   /** @type {import("@aws-sdk/client-secrets-manager").SecretsManagerClientConfig} */
   const clientConfig = { region };
@@ -62,8 +45,7 @@ function getClient({ region, profile, accessKeyId, secretAccessKey }) {
   } else if (profile) {
     clientConfig.credentials = fromIni({ profile });
   }
-  const client = new SecretsManagerClient(clientConfig);
-  clientCache.set(key, client);
+  client = new SecretsManagerClient(clientConfig);
   return client;
 }
 
@@ -106,11 +88,10 @@ export function isAuthError(error) {
  *
  * @param {string} secretName
  * @param {AwsConfig} awsConfig
- * @param {{ _client?: SecretsManagerClient }} [opts]
  * @returns {Promise<Record<string, unknown>>}
  */
-export async function getSecret(secretName, awsConfig, { _client } = {}) {
-  const client = _client ?? getClient(awsConfig);
+export async function getSecret(secretName, awsConfig) {
+  const client = getClient(awsConfig);
   const response = await client.send(
     new GetSecretValueCommand({
       SecretId: secretName,
@@ -146,11 +127,10 @@ export async function getSecret(secretName, awsConfig, { _client } = {}) {
  * @param {string} secretName
  * @param {Record<string, unknown>} secretObject
  * @param {AwsConfig} awsConfig
- * @param {{ _client?: SecretsManagerClient }} [opts]
  * @returns {Promise<"updated" | "created">}
  */
-export async function upsertSecret(secretName, secretObject, awsConfig, { _client } = {}) {
-  const client = _client ?? getClient(awsConfig);
+export async function upsertSecret(secretName, secretObject, awsConfig) {
+  const client = getClient(awsConfig);
   const secretString = JSON.stringify(secretObject);
   try {
     await client.send(

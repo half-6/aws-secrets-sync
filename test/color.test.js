@@ -59,7 +59,7 @@ describe("color module — NO_COLOR", () => {
   it("returns empty strings when NO_COLOR is set", async () => {
     const out = await runScript(
       colorScript("Object.values(c).every(v => v === '')"),
-      { NO_COLOR: "1" },
+      { NO_COLOR: "1", FORCE_COLOR: undefined },
     );
     assert.equal(out, "true");
   });

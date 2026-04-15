@@ -56,8 +56,9 @@ export function formatEnvLine(key, value) {
     .replace(/"/g, '\\"')
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
     .replace(/\0/g, "\\0")
-    .replace(/[\x01-\x09\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, (ch) => `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`);
+    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, (ch) => `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`);
   return `${key}="${escaped}"`;
 }
 
@@ -147,6 +148,8 @@ Examples:
         process.exit(1);
       }
 
+      log.info(`\n▶ Downloading ${filtered.length} secret(s) from AWS to local env file(s)…`);
+
       const effectivePromptFn = options.yes ? async () => true : promptFn;
       let anyFailed = false;
 
@@ -156,6 +159,7 @@ Examples:
         // Fetch the AWS secret first — needed for both comparison and writing.
         /** @type {Record<string, unknown> | null} */
         const awsSecret = await getSecretFn(secretName, awsConfig).catch((fetchErr) => {
+          // handleAuthError calls process.exit(1) for credential failures.
           handleAuthError(fetchErr);
           log.error(`Failed to fetch from AWS: ${getErrorMessage(fetchErr)}`);
           anyFailed = true;

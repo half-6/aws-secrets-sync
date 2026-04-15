@@ -107,7 +107,9 @@ aws-secrets-sync download staging -f ./path/to/config.json
 aws-secrets-sync download --help
 ```
 
-Fetches each secret from AWS Secrets Manager and writes it as `KEY="value"` lines to the mapped file. Values are double-quoted with backslashes and double quotes escaped. Parent directories are created automatically. Existing files are overwritten.
+Fetches each secret from AWS Secrets Manager and writes it as `KEY="value"` lines to the mapped file. Values are double-quoted with backslashes, double quotes, tabs, and newlines escaped. Parent directories are created automatically. Existing files are overwritten.
+
+> **Note — `AWSCURRENT` only:** The tool always fetches the `AWSCURRENT` version of a secret. Staged versions (e.g. `AWSPENDING` during rotation) are not accessible via this tool.
 
 ---
 

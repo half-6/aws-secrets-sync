@@ -89,6 +89,8 @@ Examples:
         process.exit(1);
       }
 
+      log.info(`\n▶ Uploading ${filtered.length} local env file(s) to AWS secret(s)…`);
+
       const effectivePromptFn = options.yes ? async () => true : promptFn;
       let anyFailed = false;
 
@@ -111,6 +113,8 @@ Examples:
         try {
           awsSecret = await getSecretFn(secretName, awsConfig);
         } catch (fetchErr) {
+          // handleAuthError calls process.exit(1) for credential failures,
+          // so anyFetchFailed is only set for non-auth, non-404 errors.
           handleAuthError(fetchErr);
           if (fetchErr instanceof Error && fetchErr.name === "ResourceNotFoundException") {
             isNew = true;

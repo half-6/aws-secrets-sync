@@ -5,8 +5,6 @@
 [![Node.js](https://img.shields.io/node/v/aws-secrets-sync)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/aws-secrets-sync)](./LICENSE)
 
-> **Note:** The npm package name is `aws-secrets-sync`. The local development folder may be named differently (e.g. `aws-secrets-to-env`) — use the package name for all install and run commands.
-
 A CLI application that syncs configuration between AWS Secrets Manager and local `.env` files:
 
 - **download**: AWS Secrets Manager → `.env` files

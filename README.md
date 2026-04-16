@@ -24,12 +24,21 @@ A CLI application that syncs configuration between AWS Secrets Manager and local
 
 ```bash
 npm install -g aws-secrets-sync
+aws-secrets-sync --version
 aws-secrets-sync --help
 ```
 
 ### One-off via npx (no install required)
 
 ```bash
+# Always fetch the latest version from the registry
+npx aws-secrets-sync@latest --version
+npx aws-secrets-sync@latest download staging
+
+# Run a specific version
+npx aws-secrets-sync@1.0.1 download staging
+
+# Plain npx — uses cached version if available, otherwise fetches latest
 npx aws-secrets-sync download staging
 npx aws-secrets-sync --help
 ```

@@ -1,0 +1,54 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for npm provenance
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Sync version with tag
+        run: |
+          # Extract version from git tag (strip leading 'v')
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Tag version: $TAG_VERSION"
+          echo "Package version: $PKG_VERSION"
+
+          # Update package.json version to match the tag if they differ
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Updating package.json version from $PKG_VERSION to $TAG_VERSION"
+            npm version "$TAG_VERSION" --no-git-tag-version
+          else
+            echo "Version already in sync: $PKG_VERSION"
+          fi
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public

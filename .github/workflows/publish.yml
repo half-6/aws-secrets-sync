@@ -36,11 +36,23 @@ jobs:
 
       - name: Sync version with tag
         run: |
-          # Extract version from git tag (strip leading 'v')
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          # For 'release' events use the release tag name; for 'push tag' use GITHUB_REF_NAME
+          RAW_TAG="${{ github.event.release.tag_name }}"
+          if [ -z "$RAW_TAG" ]; then
+            RAW_TAG="$GITHUB_REF_NAME"
+          fi
+
+          # Strip leading 'v' (e.g. v1.0.3 → 1.0.3)
+          TAG_VERSION="${RAW_TAG#v}"
           PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Raw tag   : $RAW_TAG"
           echo "Tag version: $TAG_VERSION"
           echo "Package version: $PKG_VERSION"
+
+          if [ -z "$TAG_VERSION" ]; then
+            echo "::warning::No tag version detected (RAW_TAG='$RAW_TAG'). Skipping version sync."
+            exit 0
+          fi
 
           # Update package.json version to match the tag if they differ
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
@@ -50,8 +62,10 @@ jobs:
             echo "Version already in sync: $PKG_VERSION"
           fi
 
+
       - name: Publish to npm
         run: |
           # Remove the token line written by setup-node so OIDC (Trusted Publisher) can take over
           npm config delete //registry.npmjs.org/:_authToken
+          rm -f .npmrc
           npm publish --provenance --access public

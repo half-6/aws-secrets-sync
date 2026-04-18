@@ -51,4 +51,7 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: |
+          # Remove the token line written by setup-node so OIDC (Trusted Publisher) can take over
+          npm config delete //registry.npmjs.org/:_authToken
+          npm publish --provenance --access public

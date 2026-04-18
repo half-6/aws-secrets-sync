@@ -10,6 +10,9 @@
   "files": [
     "src/"
   ],
+  "publishConfig": {
+    "provenance": true
+  },
   "scripts": {
     "download": "node src/bin/cli.js download",
     "upload": "node src/bin/cli.js upload",

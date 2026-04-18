@@ -65,11 +65,12 @@ jobs:
 
       - name: Publish to npm
         run: |
-          # Write a minimal .npmrc with only the registry URL — no _authToken.
-          # setup-node's generated .npmrc includes "_authToken=${NODE_AUTH_TOKEN}" which
-          # (even when empty) tells npm to use token auth and skips OIDC entirely.
-          # Providing a clean .npmrc lets npm fall through to Trusted Publisher OIDC auth.
+          # Write a minimal .npmrc — registry only, no _authToken
           printf 'registry=https://registry.npmjs.org/\n' > /tmp/publish.npmrc
+          # Unset NODE_AUTH_TOKEN: a GitHub Secret with this name is being injected
+          # automatically and overrides OIDC. Unsetting it lets npm Trusted Publisher
+          # (OIDC) handle authentication instead.
+          unset NODE_AUTH_TOKEN
           npm publish --provenance --access public
         env:
           NPM_CONFIG_USERCONFIG: /tmp/publish.npmrc

@@ -64,8 +64,8 @@ jobs:
 
 
       - name: Publish to npm
-        run: |
-          # Remove the token line written by setup-node so OIDC (Trusted Publisher) can take over
-          npm config delete //registry.npmjs.org/:_authToken
-          rm -f .npmrc
-          npm publish --provenance --access public
+        # NPM_CONFIG_USERCONFIG=/dev/null bypasses the temp .npmrc that setup-node writes
+        # (which contains an empty _authToken that blocks OIDC / Trusted Publisher auth)
+        run: npm publish --provenance --access public
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null

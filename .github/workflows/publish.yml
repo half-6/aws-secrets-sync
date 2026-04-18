@@ -22,7 +22,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          # No registry-url here: setup-node with registry-url automatically exports
+          # NODE_AUTH_TOKEN=GITHUB_TOKEN for all subsequent steps, which overrides
+          # OIDC (Trusted Publisher) auth. Without registry-url, npm defaults to
+          # registry.npmjs.org and Trusted Publisher OIDC works correctly.
           cache: 'npm'
 
       - name: Install dependencies
@@ -64,13 +67,4 @@ jobs:
 
 
       - name: Publish to npm
-        run: |
-          # Write a minimal .npmrc — registry only, no _authToken
-          printf 'registry=https://registry.npmjs.org/\n' > /tmp/publish.npmrc
-          # Unset NODE_AUTH_TOKEN: a GitHub Secret with this name is being injected
-          # automatically and overrides OIDC. Unsetting it lets npm Trusted Publisher
-          # (OIDC) handle authentication instead.
-          unset NODE_AUTH_TOKEN
-          npm publish --provenance --access public
-        env:
-          NPM_CONFIG_USERCONFIG: /tmp/publish.npmrc
+        run: npm publish --provenance --access public
